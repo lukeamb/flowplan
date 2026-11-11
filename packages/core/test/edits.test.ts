@@ -11,6 +11,7 @@ import {
 	FlowEditError,
 	type Origin,
 	originOf,
+	originsOf,
 	pruneOrphans,
 	setField,
 	snapshotToDoc,
@@ -173,6 +174,43 @@ describe("edit origin", () => {
 		deleteItem(a, "agent", "c_api_store");
 		sync(a, b);
 		assert.deepEqual(seen, ["agent"]);
+	});
+
+	it("reports the right origin for concurrent edits from two documents, in either arrival order", () => {
+		for (const uiFirst of [true, false]) {
+			const [a, b] = pair();
+			const observer = new Y.Doc();
+			sync(a, observer);
+			const shared = Y.encodeStateVector(a);
+			setField(a, "ui", "b_api", "title", "from ui");
+			setField(b, "agent", "b_store", "title", "from agent");
+			const fromUi = Y.encodeStateAsUpdate(a, shared);
+			const fromAgent = Y.encodeStateAsUpdate(b, shared);
+			const seen = originsSeenBy(observer);
+			for (const update of uiFirst ? [fromUi, fromAgent] : [fromAgent, fromUi]) {
+				Y.applyUpdate(observer, update, "remote");
+			}
+			assert.deepEqual(seen, uiFirst ? ["ui", "agent"] : ["agent", "ui"], uiFirst ? "ui first" : "agent first");
+		}
+	});
+
+	it("reports every origin in one update that merges edits from two documents", () => {
+		const [a, b] = pair();
+		const observer = new Y.Doc();
+		sync(a, observer);
+		const shared = Y.encodeStateVector(a);
+		setField(a, "ui", "b_api", "title", "from ui");
+		setField(b, "agent", "b_store", "title", "from agent");
+		const merged = Y.mergeUpdates([Y.encodeStateAsUpdate(a, shared), Y.encodeStateAsUpdate(b, shared)]);
+		const seen: Origin[][] = [];
+		const single: (Origin | undefined)[] = [];
+		observer.on("afterTransaction", (tx: Y.Transaction) => {
+			seen.push([...originsOf(tx)].sort());
+			single.push(originOf(tx));
+		});
+		Y.applyUpdate(observer, merged, "remote");
+		assert.deepEqual(seen, [["agent", "ui"]]);
+		assert.deepEqual(single, [undefined]);
 	});
 
 	it("reports no origin for a change made outside edit()", () => {

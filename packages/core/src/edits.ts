@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import * as Y from "yjs";
 import type { z } from "zod";
 import {
@@ -16,7 +15,6 @@ export const ORIGINS = ["ui", "agent"] as const;
 export type Origin = (typeof ORIGINS)[number];
 
 export const EDIT_KEY = "edit";
-const ORIGIN_FIELD = "origin";
 
 export class FlowEditError extends Error {
 	override name = "FlowEditError";
@@ -34,22 +32,38 @@ export function edit<T>(doc: Y.Doc, origin: Origin, change: () => T): T {
 	if (!isOrigin(origin)) throw new FlowEditError(`origin must be one of ${ORIGINS.join(", ")}`);
 	let result: T | undefined;
 	doc.transact(() => {
-		editMapOf(doc).set(ORIGIN_FIELD, origin);
+		editMapOf(doc).set(String(doc.clientID), origin);
 		result = change();
 	}, origin);
 	return result as T;
 }
 
-export function originOf(transaction: Y.Transaction): Origin | undefined {
-	if (isOrigin(transaction.origin)) return transaction.origin;
+export function originsOf(transaction: Y.Transaction): Set<Origin> {
+	if (isOrigin(transaction.origin)) return new Set([transaction.origin]);
+	const origins = new Set<Origin>();
 	const shared = transaction.doc.share.get(EDIT_KEY);
-	if (!shared || !transaction.changed.get(shared)?.has(ORIGIN_FIELD)) return undefined;
-	const origin = editMapOf(transaction.doc).get(ORIGIN_FIELD);
-	return isOrigin(origin) ? origin : undefined;
+	const changedClients = shared ? transaction.changed.get(shared) : undefined;
+	if (!changedClients) return origins;
+	const editMap = editMapOf(transaction.doc);
+	for (const client of changedClients) {
+		const origin = client === null ? undefined : editMap.get(client);
+		if (isOrigin(origin)) origins.add(origin);
+	}
+	return origins;
 }
 
+export function originOf(transaction: Y.Transaction): Origin | undefined {
+	const origins = originsOf(transaction);
+	return origins.size === 1 ? [...origins][0] : undefined;
+}
+
+const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
 export function createId(prefix: string): string {
-	return `${prefix}_${randomBytes(9).toString("base64url")}`;
+	const bytes = globalThis.crypto.getRandomValues(new Uint8Array(12));
+	let suffix = "";
+	for (const byte of bytes) suffix += ID_ALPHABET[byte & 63];
+	return `${prefix}_${suffix}`;
 }
 
 function check<T>(schema: z.ZodType<T>, value: unknown, path: PropertyKey[] = []): T {
