@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "Version of this snapshot format."
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/block"
+      },
+      "description": "Every block of the flow, sorted by ID."
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/connection"
+      },
+      "description": "Every connection of the flow, sorted by ID."
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "blocks",
+    "connections"
+  ],
+  "additionalProperties": false,
+  "title": "flowplan flow snapshot",
+  "description": "One flow, saved by flowplan as .flowplan/<flow>.json. Rules that JSON Schema cannot express: IDs are unique across blocks and connections; a parentId and a connection's from and to must name a block in the file; a function block cannot be a parent; the parent chain must not form a cycle.",
+  "$defs": {
+    "block": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "description": "Stable ID. 1 to 64 characters: letters, digits, '_' or '-'. Unique across all blocks and connections."
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "architecture",
+            "service",
+            "function"
+          ],
+          "description": "Abstraction level of the block."
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "ID of the block whose child canvas holds this block, or null for the top canvas. The parent must exist, must not be a function block, and the parent chain must not form a cycle."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Short name of the block."
+        },
+        "pseudocode": {
+          "type": "string",
+          "maxLength": 100000,
+          "description": "Pseudocode that describes what the block does."
+        },
+        "position": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number",
+              "description": "Horizontal canvas position."
+            },
+            "y": {
+              "type": "number",
+              "description": "Vertical canvas position."
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "additionalProperties": false,
+          "description": "Position of the block on its canvas."
+        },
+        "source": {
+          "description": "Optional link to code in the form 'path:line'. Stored as text; flowplan does not read the file.",
+          "type": "string",
+          "maxLength": 1024,
+          "pattern": "^[^\\r\\n]+:[1-9][0-9]*$"
+        },
+        "meta": {
+          "description": "Open object for later stages. flowplan keeps every field in it unchanged.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "level",
+        "parentId",
+        "title",
+        "pseudocode",
+        "position"
+      ],
+      "additionalProperties": false,
+      "description": "One block of the flow: a unit of work at one level."
+    },
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "description": "Stable ID. 1 to 64 characters: letters, digits, '_' or '-'. Unique across all blocks and connections."
+        },
+        "from": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "description": "ID of the block that the data leaves."
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "description": "ID of the block that the data enters."
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "The data that moves along the connection."
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "label"
+      ],
+      "additionalProperties": false,
+      "description": "A directed connection from one block to another."
+    }
+  }
+}
