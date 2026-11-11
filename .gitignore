@@ -1,0 +1,4 @@
+node_modules/
+.flowplan/server.json
+*.log
+.DS_Store
