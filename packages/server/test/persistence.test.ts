@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import { addBlock, deleteItem, docToSnapshot, parseSnapshot, serializeSnapshot, setField } from "@flowplan/core";
 import { WebSocket } from "ws";
 import type * as Y from "yjs";
@@ -402,5 +403,22 @@ describe(".flowplan/.gitignore in the planned repo", () => {
 			readFileSync(join(root, ".flowplan", ".gitignore"), "utf8"),
 			"# mine\nscratch/\nserver.json\n*.tmp\nserver.log\nserver.lock\n",
 		);
+	});
+});
+
+describe("server stop", () => {
+	it("leaves no write timer behind, so the process exits soon after close() even with a long debounce", async () => {
+		const script = fileURLToPath(new URL("./fixtures/close-then-exit.ts", import.meta.url));
+		const started = Date.now();
+		const code = await new Promise<number | null>((resolve) => {
+			const child = spawn(process.execPath, [script], { stdio: "ignore" });
+			const timer = setTimeout(() => child.kill("SIGKILL"), 20_000);
+			child.on("close", (exit) => {
+				clearTimeout(timer);
+				resolve(exit);
+			});
+		});
+		assert.equal(code, 0);
+		assert.ok(Date.now() - started < 5000, `exited after ${Date.now() - started} ms`);
 	});
 });

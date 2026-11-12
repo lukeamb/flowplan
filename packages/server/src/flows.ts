@@ -23,6 +23,7 @@ export class FlowStore {
 	private readonly flows = new Map<string, Flow>();
 	private readonly failed = new Set<string>();
 	private writeCounter = 0;
+	private closed = false;
 
 	private readonly options: FlowStoreOptions;
 
@@ -79,6 +80,7 @@ export class FlowStore {
 	}
 
 	private schedule(name: string, flow: Flow): void {
+		if (this.closed) return;
 		clearTimeout(flow.timer);
 		flow.timer = setTimeout(() => {
 			flow.timer = undefined;
@@ -124,5 +126,10 @@ export class FlowStore {
 			}
 		}
 		await Promise.all([...this.flows.values()].map((flow) => flow.writing));
+	}
+
+	async close(): Promise<void> {
+		this.closed = true;
+		await this.flush();
 	}
 }

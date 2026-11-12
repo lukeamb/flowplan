@@ -164,7 +164,7 @@ export async function startServer(options: ServerOptions): Promise<FlowplanServe
 				wss.close();
 				http.closeAllConnections();
 				await new Promise<void>((done) => http.close(() => done()));
-				await store.flush();
+				await store.close();
 				const info = await readServerInfo(serverFile);
 				if (info?.pid === process.pid && info.port === port) await rm(serverFile, { force: true });
 			})();
