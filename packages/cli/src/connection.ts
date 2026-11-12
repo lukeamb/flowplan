@@ -63,19 +63,22 @@ export async function openFlow(info: ServerInfo, flow: string, timeoutMs = 5000)
 		doc,
 		provider,
 		close: () => {
-			closed ??= new Promise<void>((resolve) => {
-				let finished = false;
-				const done = () => {
-					if (finished) return;
-					finished = true;
-					clearTimeout(timer);
-					provider.off("connection-close", done);
+			closed ??= new Promise<void>((resolve, reject) => {
+				const socket = provider.ws;
+				if (!socket || socket.readyState === socket.CLOSED) {
 					destroy();
 					resolve();
-				};
-				const timer = setTimeout(done, CLOSE_TIMEOUT_MS);
-				if (!provider.wsconnected) return done();
-				provider.on("connection-close", done);
+					return;
+				}
+				const timer = setTimeout(() => {
+					destroy();
+					reject(new CliError("the flowplan server did not confirm that it received the edit"));
+				}, CLOSE_TIMEOUT_MS);
+				socket.addEventListener("close", () => {
+					clearTimeout(timer);
+					destroy();
+					resolve();
+				});
 				provider.disconnect();
 			});
 			return closed;

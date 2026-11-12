@@ -103,7 +103,10 @@ export function watchFlow(connection: FlowConnection, flow: string, io: WatchIo)
 		const stop = (code: number) => {
 			if (stopping) return;
 			stopping = true;
-			connection.close().then(() => resolve(code));
+			connection.close().then(
+				() => resolve(code),
+				() => resolve(code),
+			);
 		};
 		provider.on("connection-close", () => {
 			if (stopping) return;
