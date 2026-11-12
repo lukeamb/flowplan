@@ -290,7 +290,8 @@ export const COMMANDS: Command[] = [
 		name: "focus",
 		args: "",
 		summary: "Print the user's current canvas path and selected blocks, once.",
-		details: "  Reads the focus of the most recently active UI client. Starts no server.",
+		details:
+			"  Reads the focus of a UI client. With more than one UI client, it uses the state that this command received last.\n  Starts no server.",
 		options: {},
 		positionals: [0, 0],
 		async run(context) {
