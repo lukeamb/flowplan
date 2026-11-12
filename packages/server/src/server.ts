@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
 import type { Duplex } from "node:stream";
+import { MAX_MESSAGE_BYTES } from "@flowplan/core";
 import { WebSocketServer } from "ws";
 import type * as Y from "yjs";
 import { FlowRoom } from "./connection.ts";
@@ -13,7 +14,6 @@ import { checkHttp, checkUpgrade, type Gate } from "./security.ts";
 export const HOST = "127.0.0.1";
 export const DEFAULT_DEBOUNCE_MS = 500;
 export const SERVER_FILE = "server.json";
-const MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
 export const IGNORED_PATTERNS = [SERVER_FILE, "*.tmp", "server.log", "server.lock"];
 
 export type ServerOptions = {

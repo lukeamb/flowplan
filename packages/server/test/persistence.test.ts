@@ -5,7 +5,15 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { addBlock, deleteItem, docToSnapshot, parseSnapshot, serializeSnapshot, setField } from "@flowplan/core";
+import {
+	addBlock,
+	deleteItem,
+	docToSnapshot,
+	MAX_MESSAGE_BYTES,
+	parseSnapshot,
+	serializeSnapshot,
+	setField,
+} from "@flowplan/core";
 import { WebSocket } from "ws";
 import type * as Y from "yjs";
 import { sampleSnapshot } from "../../core/test/fixtures.ts";
@@ -420,5 +428,25 @@ describe("server stop", () => {
 		});
 		assert.equal(code, 0);
 		assert.ok(Date.now() - started < 5000, `exited after ${Date.now() - started} ms`);
+	});
+});
+
+describe("message limit", () => {
+	it("closes a client with code 1009 for a frame over the shared limit, and keeps running", async () => {
+		const root = tempRoot();
+		await writeFlow(root, "main", sampleSnapshot());
+		const { server } = await start({ root });
+		try {
+			const socket = new WebSocket(`ws://127.0.0.1:${server.port}/main?token=${server.token}`);
+			await new Promise((resolve) => socket.on("open", resolve));
+			const closed = new Promise<number>((resolve) => socket.on("close", resolve));
+			socket.send(Buffer.alloc(MAX_MESSAGE_BYTES + 1));
+			assert.equal(await closed, 1009);
+			const client = await connect(server, "main");
+			assert.deepEqual(docToSnapshot(client.doc), sampleSnapshot());
+			disconnect(client);
+		} finally {
+			await server.close();
+		}
 	});
 });
