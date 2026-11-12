@@ -11,13 +11,15 @@ import {
 	formatFocus,
 	importSnapshot,
 	type Level,
+	MAX_MESSAGE_BYTES,
 	parsePresence,
 	parseSnapshot,
 	type Snapshot,
 	setField,
+	syncFrameBytes,
 } from "@flowplan/core";
 import { isFlowName } from "@flowplan/server";
-import type * as Y from "yjs";
+import * as Y from "yjs";
 import { openFlow } from "./connection.ts";
 import { CliError, UsageError } from "./errors.ts";
 import { count, formatOutline } from "./outline.ts";
@@ -51,11 +53,38 @@ const COMMON_HELP = `  --root <dir>   The repo that holds .flowplan/. Default: t
 
 const AGENT = "agent";
 
+export function measureUpdate(doc: Y.Doc, change: (doc: Y.Doc) => unknown): number {
+	const copy = new Y.Doc();
+	copy.clientID = doc.clientID;
+	Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc));
+	let bytes = 0;
+	copy.on("update", (update: Uint8Array) => {
+		bytes += update.length;
+	});
+	try {
+		change(copy);
+	} finally {
+		copy.destroy();
+	}
+	return bytes;
+}
+
+function checkSize(doc: Y.Doc, change: (doc: Y.Doc) => unknown): void {
+	const bytes = syncFrameBytes(measureUpdate(doc, change));
+	if (bytes > MAX_MESSAGE_BYTES) {
+		const mib = (n: number) => (n / 1024 / 1024).toFixed(1).replace(/\.0$/, "");
+		throw new CliError(
+			`the edit is ${mib(bytes)} MiB, over the server's message limit of ${mib(MAX_MESSAGE_BYTES)} MiB. Split it into smaller edits.`,
+		);
+	}
+}
+
 async function withLiveFlow<T>(context: Context, change: (doc: Y.Doc) => T): Promise<T> {
 	const info = await ensureServer(context.root);
 	const connection = await openFlow(info, context.flow);
 	let result: T;
 	try {
+		checkSize(connection.doc, change);
 		result = change(connection.doc);
 	} catch (error) {
 		await connection.close().catch(() => undefined);
