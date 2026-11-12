@@ -256,7 +256,7 @@ export function deleteItem(doc: Y.Doc, origin: Origin, id: string): string[] {
 	});
 }
 
-export function pruneOrphans(doc: Y.Doc, origin: Origin): string[] {
+export function pruneOrphans(doc: Y.Doc, origin?: Origin): string[] {
 	const all = new Map<string, { level: string; parentId: string | null }>();
 	for (const [id, block] of blocksOf(doc).entries()) {
 		all.set(id, {
@@ -273,7 +273,13 @@ export function pruneOrphans(doc: Y.Doc, origin: Origin): string[] {
 		}
 	}
 	if (orphans.size === 0 && danglingConnections.length === 0) return [];
-	return edit(doc, origin, () => removeBlocks(doc, orphans, danglingConnections));
+	const remove = () => removeBlocks(doc, orphans, danglingConnections);
+	if (origin !== undefined) return edit(doc, origin, remove);
+	let removed: string[] = [];
+	doc.transact(() => {
+		removed = remove();
+	});
+	return removed;
 }
 
 export type { Block, Connection };

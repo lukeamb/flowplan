@@ -213,6 +213,20 @@ describe("edit origin", () => {
 		assert.deepEqual(single, [undefined]);
 	});
 
+	it("reports no origin for an orphan cleanup made without an origin, here and on another document", () => {
+		const [a, b] = pair();
+		deleteItem(a, "agent", "b_api");
+		addBlock(b, "ui", { id: "b_new", level: "function", parentId: "b_api", title: "new()" });
+		sync(a, b);
+		const seenA = originsSeenBy(a);
+		const seenB = originsSeenBy(b);
+		assert.deepEqual(pruneOrphans(a), ["b_new"]);
+		assert.deepEqual(seenA, [undefined]);
+		sync(a, b);
+		assert.deepEqual(seenB, [undefined]);
+		assert.equal(b.getMap("blocks").has("b_new"), false);
+	});
+
 	it("reports no origin for a change made outside edit()", () => {
 		const doc = new Y.Doc();
 		const seen = originsSeenBy(doc);
