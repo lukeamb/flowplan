@@ -14,6 +14,7 @@ export const HOST = "127.0.0.1";
 export const DEFAULT_DEBOUNCE_MS = 500;
 export const SERVER_FILE = "server.json";
 const MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
+export const IGNORED_PATTERNS = [SERVER_FILE, "*.tmp"];
 
 export type ServerOptions = {
 	root: string;
@@ -60,6 +61,21 @@ async function writePrivateFile(path: string, text: string): Promise<void> {
 	await rename(temp, path);
 }
 
+export async function ensureGitignore(dir: string): Promise<void> {
+	const path = join(dir, ".gitignore");
+	let text = "";
+	try {
+		text = await readFile(path, "utf8");
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+	const present = new Set(text.split(/\r?\n/).map((line) => line.trim()));
+	const missing = IGNORED_PATTERNS.filter((pattern) => !present.has(pattern));
+	if (missing.length === 0) return;
+	const separator = text === "" || text.endsWith("\n") ? "" : "\n";
+	await writeFile(path, `${text}${separator}${missing.join("\n")}\n`);
+}
+
 function refuse(socket: Duplex, status: number, reason: string): void {
 	const text = { 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 409: "Conflict" }[status] ?? "Error";
 	socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\n${reason}\n`);
@@ -86,6 +102,7 @@ export async function startServer(options: ServerOptions): Promise<FlowplanServe
 		onSnapshotWrite: options.onSnapshotWrite,
 	});
 	await store.load();
+	await ensureGitignore(dir);
 
 	const running = await readServerInfo(serverFile);
 	if (running && isRunning(running.pid)) {

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { addBlock, deleteItem, docToSnapshot, parseSnapshot, serializeSnapshot, setField } from "@flowplan/core";
@@ -219,7 +221,7 @@ describe("snapshot writes", () => {
 		}
 		assert.ok(writes >= 10, `only ${writes} writes`);
 		assert.ok(reads >= 10, `only ${reads} reads`);
-		assert.deepEqual(readdirSync(join(root, ".flowplan")).sort(), ["main.json"]);
+		assert.deepEqual(readdirSync(join(root, ".flowplan")).sort(), [".gitignore", "main.json"]);
 	});
 });
 
@@ -335,5 +337,52 @@ describe("server.json", () => {
 		} finally {
 			await server.close();
 		}
+	});
+});
+
+describe(".flowplan/.gitignore in the planned repo", () => {
+	const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" });
+
+	it("makes git ignore server.json and temporary files, and not a flow snapshot, in a repo with no .flowplan/.gitignore", async () => {
+		const root = tempRoot();
+		git(root, "init", "-q");
+		await writeFlow(root, "main", sampleSnapshot());
+		const { server } = await start({ root });
+		try {
+			const ignored = git(
+				root,
+				"check-ignore",
+				".flowplan/server.json",
+				".flowplan/.main.json.123.4.tmp",
+				".flowplan/server.json.123.tmp",
+			);
+			assert.deepEqual(ignored.trim().split("\n"), [
+				".flowplan/server.json",
+				".flowplan/.main.json.123.4.tmp",
+				".flowplan/server.json.123.tmp",
+			]);
+			assert.throws(() => git(root, "check-ignore", ".flowplan/main.json"));
+			assert.throws(() => git(root, "check-ignore", ".flowplan/.gitignore"));
+		} finally {
+			await server.close();
+		}
+	});
+
+	it("adds only the missing lines and keeps every other line", async () => {
+		const root = tempRoot();
+		await mkdir(join(root, ".flowplan"), { recursive: true });
+		writeFileSync(join(root, ".flowplan", ".gitignore"), "# mine\nscratch/\nserver.json");
+		const { server } = await start({ root });
+		try {
+			assert.equal(
+				readFileSync(join(root, ".flowplan", ".gitignore"), "utf8"),
+				"# mine\nscratch/\nserver.json\n*.tmp\n",
+			);
+		} finally {
+			await server.close();
+		}
+		const again = await start({ root });
+		await again.server.close();
+		assert.equal(readFileSync(join(root, ".flowplan", ".gitignore"), "utf8"), "# mine\nscratch/\nserver.json\n*.tmp\n");
 	});
 });
