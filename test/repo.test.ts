@@ -32,10 +32,14 @@ describe("dependency pinning", () => {
 	});
 
 	it("resolves every dependency in the lockfile to the version that package.json names", () => {
-		const lock = JSON.parse(read("package-lock.json")) as { packages: Record<string, { version?: string }> };
-		const mismatched = dependencies().filter(
-			([, name, version]) => lock.packages[`node_modules/${name}`]?.version !== version,
-		);
+		const lock = JSON.parse(read("package-lock.json")) as {
+			packages: Record<string, { version?: string; link?: boolean; resolved?: string }>;
+		};
+		const lockedVersion = (name: string) => {
+			const entry = lock.packages[`node_modules/${name}`];
+			return entry?.link && entry.resolved ? lock.packages[entry.resolved]?.version : entry?.version;
+		};
+		const mismatched = dependencies().filter(([, name, version]) => lockedVersion(name) !== version);
 		assert.deepEqual(mismatched, []);
 	});
 });
