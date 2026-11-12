@@ -9,7 +9,15 @@ import {
 	createConnectionMap,
 	planRepair,
 } from "./doc.ts";
-import { type Block, blockSchema, type Connection, connectionSchema, type Level, toJsonPath } from "./schema.ts";
+import {
+	type Block,
+	blockSchema,
+	type Connection,
+	connectionSchema,
+	type Level,
+	toJsonPath,
+	validateSnapshot,
+} from "./schema.ts";
 
 export const ORIGINS = ["ui", "agent"] as const;
 export type Origin = (typeof ORIGINS)[number];
@@ -254,6 +262,21 @@ export function deleteItem(doc: Y.Doc, origin: Origin, id: string): string[] {
 		}
 		return removeBlocks(doc, descendantsOf(doc, id));
 	});
+}
+
+export function importSnapshot(doc: Y.Doc, origin: Origin, snapshot: unknown): { blocks: number; connections: number } {
+	const result = validateSnapshot(snapshot);
+	if (!result.ok) {
+		throw new FlowEditError(`the file is not valid: ${result.errors.map((e) => `${e.path}: ${e.message}`).join("; ")}`);
+	}
+	const { blocks, connections } = result.snapshot;
+	const used = [...blocks, ...connections].map((item) => item.id).filter((id) => isUsed(doc, id));
+	if (used.length > 0) throw new FlowEditError(`these IDs are already in the flow: ${used.join(", ")}`);
+	edit(doc, origin, () => {
+		for (const block of blocks) blocksOf(doc).set(block.id, createBlockMap(block));
+		for (const connection of connections) connectionsOf(doc).set(connection.id, createConnectionMap(connection));
+	});
+	return { blocks: blocks.length, connections: connections.length };
 }
 
 export type RepairResult = { removed: string[]; moved: string[] };
