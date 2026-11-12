@@ -7,7 +7,7 @@ import {
 	connectionsOf,
 	createBlockMap,
 	createConnectionMap,
-	reachableBlockIds,
+	planRepair,
 } from "./doc.ts";
 import { type Block, blockSchema, type Connection, connectionSchema, type Level, toJsonPath } from "./schema.ts";
 
@@ -256,30 +256,37 @@ export function deleteItem(doc: Y.Doc, origin: Origin, id: string): string[] {
 	});
 }
 
-export function pruneOrphans(doc: Y.Doc, origin?: Origin): string[] {
-	const all = new Map<string, { level: string; parentId: string | null }>();
+export type RepairResult = { removed: string[]; moved: string[] };
+
+export function repairFlow(doc: Y.Doc, origin?: Origin): RepairResult {
+	const links = new Map<string, { level: unknown; parentId: string | null }>();
 	for (const [id, block] of blocksOf(doc).entries()) {
-		all.set(id, {
-			level: block.get("level") as string,
-			parentId: (block.get("parentId") as string | null | undefined) ?? null,
-		});
+		const parentId = block.get("parentId");
+		links.set(id, { level: block.get("level"), parentId: typeof parentId === "string" ? parentId : null });
 	}
-	const kept = reachableBlockIds(all);
-	const orphans = new Set([...all.keys()].filter((id) => !kept.has(id)));
-	const danglingConnections: string[] = [];
+	const plan = planRepair(links);
+	const removedBlocks = new Set(plan.remove);
+	const dangling: string[] = [];
 	for (const [id, connection] of connectionsOf(doc).entries()) {
-		if (!kept.has(connection.get("from") as string) || !kept.has(connection.get("to") as string)) {
-			danglingConnections.push(id);
-		}
+		const ends = [connection.get("from"), connection.get("to")];
+		if (ends.some((end) => typeof end !== "string" || !links.has(end))) dangling.push(id);
 	}
-	if (orphans.size === 0 && danglingConnections.length === 0) return [];
-	const remove = () => removeBlocks(doc, orphans, danglingConnections);
-	if (origin !== undefined) return edit(doc, origin, remove);
-	let removed: string[] = [];
+	if (removedBlocks.size === 0 && dangling.length === 0 && plan.move.size === 0) return { removed: [], moved: [] };
+	const apply = (): RepairResult => {
+		for (const [id, parentId] of plan.move) blocksOf(doc).get(id)?.set("parentId", parentId);
+		const removed = removeBlocks(doc, removedBlocks, dangling);
+		return { removed: removed.sort(), moved: [...plan.move.keys()] };
+	};
+	if (origin !== undefined) return edit(doc, origin, apply);
+	let result: RepairResult = { removed: [], moved: [] };
 	doc.transact(() => {
-		removed = remove();
+		result = apply();
 	});
-	return removed;
+	return result;
+}
+
+export function pruneOrphans(doc: Y.Doc, origin?: Origin): string[] {
+	return repairFlow(doc, origin).removed;
 }
 
 export type { Block, Connection };

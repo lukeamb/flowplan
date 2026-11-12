@@ -83,44 +83,71 @@ function readConnection(id: string, map: ConnectionMap): Connection {
 	};
 }
 
-export function reachableBlockIds(
-	blocks: ReadonlyMap<string, { level: string; parentId: string | null }>,
-): Set<string> {
-	const reachable = new Set<string>();
-	const unreachable = new Set<string>();
-	const resolve = (id: string): boolean => {
+export type BlockLink = { level: unknown; parentId: string | null };
+export type RepairPlan = { remove: string[]; move: Map<string, string | null> };
+
+export function planRepair(blocks: ReadonlyMap<string, BlockLink>): RepairPlan {
+	const ids = [...blocks.keys()].sort();
+	const parentOf = new Map(ids.map((id) => [id, blocks.get(id)?.parentId ?? null]));
+
+	const remove = new Set<string>();
+	for (const id of ids) {
+		const seen = new Set<string>();
+		let current: string | null = id;
+		while (current !== null && !seen.has(current)) {
+			if (!blocks.has(current)) {
+				remove.add(id);
+				break;
+			}
+			seen.add(current);
+			current = parentOf.get(current) ?? null;
+		}
+	}
+
+	const move = new Map<string, string | null>();
+	const state = new Map<string, "walking" | "done">();
+	for (const id of ids) {
+		if (remove.has(id)) continue;
 		const path: string[] = [];
 		let current: string | null = id;
-		let ok = false;
-		while (true) {
-			if (current === null) {
-				ok = true;
-				break;
-			}
-			if (reachable.has(current)) {
-				ok = true;
-				break;
-			}
-			if (unreachable.has(current) || path.includes(current)) break;
-			const block = blocks.get(current);
-			if (!block) break;
+		while (current !== null && !remove.has(current) && !state.has(current)) {
+			state.set(current, "walking");
 			path.push(current);
-			const parentId: string | null = block.parentId;
-			if (parentId !== null && blocks.get(parentId)?.level === "function") break;
-			current = parentId;
+			current = parentOf.get(current) ?? null;
 		}
-		for (const step of path) (ok ? reachable : unreachable).add(step);
-		return ok;
-	};
-	for (const id of blocks.keys()) resolve(id);
-	return reachable;
+		if (current !== null && state.get(current) === "walking") {
+			const cycle = path.slice(path.indexOf(current));
+			const lowest = [...cycle].sort()[0] as string;
+			parentOf.set(lowest, null);
+			move.set(lowest, null);
+		}
+		for (const step of path) state.set(step, "done");
+	}
+
+	const isFunction = (id: string) => blocks.get(id)?.level === "function";
+	for (const id of ids) {
+		if (remove.has(id)) continue;
+		const parentId = parentOf.get(id) ?? null;
+		if (parentId === null || !isFunction(parentId)) continue;
+		let target: string | null = parentId;
+		while (target !== null && isFunction(target)) target = parentOf.get(target) ?? null;
+		move.set(id, target);
+	}
+
+	const sortedMove = new Map([...move].sort(([a], [b]) => (a < b ? -1 : 1)));
+	return { remove: [...remove].sort(), move: sortedMove };
 }
 
 export function docToSnapshot(doc: Y.Doc): Snapshot {
 	const all = new Map<string, Block>();
 	for (const [id, map] of blocksOf(doc).entries()) all.set(id, readBlock(id, map));
-	const kept = reachableBlockIds(all);
-	const blocks = [...all.values()].filter((b) => kept.has(b.id)).sort(compareIds);
+	const plan = planRepair(all);
+	const removed = new Set(plan.remove);
+	const blocks = [...all.values()]
+		.filter((b) => !removed.has(b.id))
+		.map((b) => (plan.move.has(b.id) ? { ...b, parentId: plan.move.get(b.id) ?? null } : b))
+		.sort(compareIds);
+	const kept = new Set(blocks.map((b) => b.id));
 	const connections = [...connectionsOf(doc).entries()]
 		.map(([id, map]) => readConnection(id, map))
 		.filter((c) => kept.has(c.from) && kept.has(c.to))
