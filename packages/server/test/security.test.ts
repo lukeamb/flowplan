@@ -55,14 +55,20 @@ describe("server security", () => {
 		assert.deepEqual(server.address(), { address: "127.0.0.1", family: "IPv4", port: server.port });
 	});
 
-	it("accepts a websocket from the app's own origin", async () => {
-		assert.deepEqual(await upgrade(server, { headers: { Origin: own() } }), { status: "open" });
+	it("accepts a websocket from the app's own origin with the token", async () => {
+		assert.deepEqual(await upgrade(server, { path: tokenPath(), headers: { Origin: own() } }), { status: "open" });
 		const viaLocalhost = { Origin: `http://localhost:${server.port}`, Host: `localhost:${server.port}` };
-		assert.deepEqual(await upgrade(server, { headers: viaLocalhost }), { status: "open" });
+		assert.deepEqual(await upgrade(server, { path: tokenPath(), headers: viaLocalhost }), { status: "open" });
 	});
 
-	it("accepts a websocket from an extra allowed origin", async () => {
-		assert.deepEqual(await upgrade(server, { headers: { Origin: "http://localhost:5173" } }), { status: "open" });
+	it("accepts a websocket from an extra allowed origin with the token", async () => {
+		const attempt = await upgrade(server, { path: tokenPath(), headers: { Origin: "http://localhost:5173" } });
+		assert.deepEqual(attempt, { status: "open" });
+	});
+
+	it("refuses a websocket from the app's own origin with no token or a wrong token", async () => {
+		assert.deepEqual(await upgrade(server, { headers: { Origin: own() } }), { status: 401 });
+		assert.deepEqual(await upgrade(server, { path: "/main?token=wrong", headers: { Origin: own() } }), { status: 401 });
 	});
 
 	it("refuses a websocket with an Origin that is not the app's own origin", async () => {

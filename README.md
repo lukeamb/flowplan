@@ -4,18 +4,20 @@ flowplan is a tool to plan a feature as a flow of blocks and connections. A pers
 
 ## Start the server
 
-Run this command from the root of the repo that you plan:
+Run this command in the flowplan repo. Set `--root` to the repo that you plan:
 
 ```bash
-npm start
+npm start -- --root /path/to/planned-repo
 ```
 
-The server prints its address, for example `flowplan server: http://127.0.0.1:52811 (flows in /path/to/repo/.flowplan)`.
+With no `--root`, the server uses the current directory, so `npm start` alone keeps the flows of the flowplan repo.
 
-To use a different directory or a fixed port:
+The server prints its address, for example `flowplan server: http://127.0.0.1:52811 (flows in /path/to/planned-repo/.flowplan)`.
+
+To use a fixed port, add `--port`:
 
 ```bash
-npm start -- --root ../other-repo --port 4747
+npm start -- --root /path/to/planned-repo --port 4747
 ```
 
 Stop the server with Ctrl+C. The server writes each pending snapshot before it stops.
@@ -33,8 +35,8 @@ Stop the server with Ctrl+C. The server writes each pending snapshot before it s
 
 - The server listens on `127.0.0.1` only.
 - The server refuses a request when the `Host` header is not `localhost` or `127.0.0.1` with the server's port.
-- The server refuses a browser websocket when the `Origin` header is not the server's own origin. Add more origins with `--allow-origin`.
-- A client with no `Origin` header, for example the CLI, must send the token from `.flowplan/server.json` as the `token` query parameter.
+- The server refuses a websocket when the `Origin` header is present and is not the server's own origin. Add more origins with `--allow-origin`.
+- Every websocket client must send the token from `.flowplan/server.json` as the `token` query parameter. This applies to the CLI and to the browser app.
 - `.flowplan/server.json` holds the port, the process ID and the token. Only its owner can read it. Git ignores it. The server deletes it when it stops.
 - Only one server can run for a directory. When `server.json` names a process that is running, a second server does not start.
 

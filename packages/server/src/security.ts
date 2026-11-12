@@ -33,13 +33,8 @@ export function checkUpgrade(
 ): Verdict {
 	const host = checkHttp(headers, gate);
 	if (!host.ok) return host;
-	if (headers.origin !== undefined) {
-		const allowed = [...ownOrigins(gate.port), ...gate.allowedOrigins];
-		return allowed.includes(headers.origin)
-			? { ok: true }
-			: { ok: false, status: 403, reason: "Origin is not the app's own origin" };
+	if (headers.origin !== undefined && ![...ownOrigins(gate.port), ...gate.allowedOrigins].includes(headers.origin)) {
+		return { ok: false, status: 403, reason: "Origin is not the app's own origin" };
 	}
-	return tokenMatches(token, gate.token)
-		? { ok: true }
-		: { ok: false, status: 401, reason: "no Origin header and no valid token" };
+	return tokenMatches(token, gate.token) ? { ok: true } : { ok: false, status: 401, reason: "no valid token" };
 }
