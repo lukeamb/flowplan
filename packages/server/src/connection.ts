@@ -11,7 +11,7 @@ const MESSAGE_AWARENESS = 1;
 const MESSAGE_QUERY_AWARENESS = 3;
 const PING_INTERVAL_MS = 30_000;
 
-type Client = { socket: WebSocket; clientIds: Set<number>; alive: boolean };
+type Client = { socket: WebSocket; clientIds: Set<number>; awarenessIds: Set<number>; alive: boolean };
 
 export class FlowRoom {
 	readonly awareness: awarenessProtocol.Awareness;
@@ -35,7 +35,7 @@ export class FlowRoom {
 	}
 
 	join(socket: WebSocket): void {
-		const client: Client = { socket, clientIds: new Set(), alive: true };
+		const client: Client = { socket, clientIds: new Set(), awarenessIds: new Set(), alive: true };
 		this.clients.set(socket, client);
 		socket.binaryType = "arraybuffer";
 		socket.on("message", (data: ArrayBuffer) => this.onMessage(client, new Uint8Array(data)));
@@ -109,7 +109,10 @@ export class FlowRoom {
 		const changed = [...change.added, ...change.updated, ...change.removed];
 		const sender = this.clientOf(origin);
 		if (sender) {
-			for (const id of [...change.added, ...change.updated]) sender.clientIds.add(id);
+			for (const id of [...change.added, ...change.updated]) {
+				sender.awarenessIds.add(id);
+				sender.clientIds.add(id);
+			}
 		}
 		const encoder = encoding.createEncoder();
 		encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
@@ -120,7 +123,7 @@ export class FlowRoom {
 
 	private leave(client: Client): void {
 		if (!this.clients.delete(client.socket)) return;
-		awarenessProtocol.removeAwarenessStates(this.awareness, [...client.clientIds], null);
+		awarenessProtocol.removeAwarenessStates(this.awareness, [...client.awarenessIds], null);
 		this.removeDisconnectedOrigins();
 	}
 

@@ -146,3 +146,23 @@ describe("edit-origin map", () => {
 		}
 	});
 });
+
+describe("awareness", () => {
+	it("relays a client's focus state to the other client and removes it when that client disconnects", async () => {
+		const root = tempRoot();
+		await writeFlow(root, "main", sampleSnapshot());
+		const { server } = await start({ root });
+		const [ui, agent] = await Promise.all([connect(server, "main"), connect(server, "main")]);
+		try {
+			ui.provider.awareness.setLocalState({ canvas: ["b_root"], selected: ["b_api"] });
+			const uiId = ui.doc.clientID;
+			await waitFor(() => agent.provider.awareness.getStates().has(uiId));
+			assert.deepEqual(agent.provider.awareness.getStates().get(uiId), { canvas: ["b_root"], selected: ["b_api"] });
+			disconnect(ui);
+			await waitFor(() => !agent.provider.awareness.getStates().has(uiId));
+		} finally {
+			disconnect(agent);
+			await server.close();
+		}
+	});
+});
