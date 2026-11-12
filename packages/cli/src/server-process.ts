@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
-import { mkdir, open, readFile, rm } from "node:fs/promises";
+import { link, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureGitignore, isRunning, readServerInfo, SERVER_FILE, type ServerInfo } from "@flowplan/server";
@@ -25,26 +26,34 @@ export async function runningServer(dir: string): Promise<ServerInfo | undefined
 	return info && typeof info.token === "string" && isRunning(info.pid) ? info : undefined;
 }
 
-async function tryLock(path: string): Promise<boolean> {
+const NO_PID_GRACE_MS = 10_000;
+
+export async function tryLock(path: string): Promise<boolean> {
+	const temp = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+	await writeFile(temp, `${process.pid}\n`, { flag: "wx" });
 	try {
-		const handle = await open(path, "wx");
-		await handle.writeFile(`${process.pid}\n`);
-		await handle.close();
+		await link(temp, path);
 		return true;
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
 		throw error;
+	} finally {
+		await rm(temp, { force: true });
 	}
 }
 
-async function clearStaleLock(path: string): Promise<void> {
-	let pid: number;
+export async function clearStaleLock(path: string): Promise<void> {
+	let content: string;
+	let modified: number;
 	try {
-		pid = Number.parseInt(await readFile(path, "utf8"), 10);
+		content = await readFile(path, "utf8");
+		modified = (await stat(path)).mtimeMs;
 	} catch {
 		return;
 	}
-	if (!Number.isInteger(pid) || !isRunning(pid)) await rm(path, { force: true });
+	const pid = Number.parseInt(content, 10);
+	const stale = Number.isInteger(pid) ? !isRunning(pid) : Date.now() - modified > NO_PID_GRACE_MS;
+	if (stale) await rm(path, { force: true });
 }
 
 function logTail(path: string, from: number): string {

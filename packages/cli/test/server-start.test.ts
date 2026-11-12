@@ -73,6 +73,9 @@ describe("server start from an edit command", () => {
 				assert.ok(titles.includes("One") && titles.includes("Two"), titles.join());
 				client.close();
 				assert.equal(readdirSync(join(root, ".flowplan")).includes("server.lock"), false);
+				const log = readFileSync(join(root, ".flowplan", "server.log"), "utf8");
+				assert.equal(log.match(/flowplan server: http/g)?.length, 1, log);
+				assert.equal(log.includes("already running"), false, log);
 			} finally {
 				await stopSpawnedServers(root);
 			}
