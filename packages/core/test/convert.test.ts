@@ -41,7 +41,7 @@ describe("snapshot to Yjs and back", () => {
 		const login = original.blocks.find((b) => b.id === "b_login");
 		assert.ok(login);
 		login.meta = {
-			reviewTick: { by: "luke", at: "2026-11-11" },
+			reviewTick: { by: "reviewer-1", at: "2026-11-11" },
 			nested: { list: [1, "two", { three: [null, false] }], empty: {} },
 			"odd key": 1.5,
 		};
