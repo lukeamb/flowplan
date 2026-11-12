@@ -2,7 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { addBlock, deleteItem, docToSnapshot, edit, type Origin, originOf, setField, textField } from "@flowplan/core";
+import {
+	addBlock,
+	deleteItem,
+	docToSnapshot,
+	edit,
+	type Origin,
+	originOf,
+	parseSnapshot,
+	setField,
+	textField,
+	validateSnapshot,
+} from "@flowplan/core";
 import type * as Y from "yjs";
 import { sampleSnapshot } from "../../core/test/fixtures.ts";
 import { connect, disconnect, start, tempRoot, waitFor, writeFlow } from "./helpers.ts";
@@ -162,6 +173,58 @@ describe("awareness", () => {
 			await waitFor(() => !agent.provider.awareness.getStates().has(uiId));
 		} finally {
 			disconnect(agent);
+			await server.close();
+		}
+	});
+});
+
+describe("concurrent parentId changes through the server", () => {
+	it("keep every block in a parent cycle and every child, give a valid snapshot, and settle with no further edits", async () => {
+		const root = tempRoot();
+		await writeFlow(root, "main", sampleSnapshot());
+		const { server, logged } = await start({ root, debounceMs: 20 });
+		const [a, b] = await Promise.all([connect(server, "main"), connect(server, "main")]);
+		const live = server.doc("main") as Y.Doc;
+		try {
+			b.provider.disconnect();
+			setField(a.doc, "ui", "b_store", "parentId", "b_api");
+			setField(b.doc, "agent", "b_api", "parentId", "b_store");
+			await waitFor(() => (live.getMap("blocks").get("b_store") as Y.Map<unknown>).get("parentId") === "b_api");
+			b.provider.connect();
+
+			const expected = { b_api: null, b_login: "b_api", b_root: null, b_store: "b_api" };
+			const parents = (doc: Y.Doc) => Object.fromEntries(docToSnapshot(doc).blocks.map((x) => [x.id, x.parentId]));
+			const parentInDoc = (doc: Y.Doc, id: string) => (doc.getMap("blocks").get(id) as Y.Map<unknown>).get("parentId");
+			await waitFor(() => [live, a.doc, b.doc].every((doc) => parentInDoc(doc, "b_api") === null));
+			for (const doc of [live, a.doc, b.doc]) {
+				assert.equal(doc.getMap("blocks").size, 4);
+				assert.equal(parentInDoc(doc, "b_store"), "b_api");
+				assert.deepEqual(parents(doc), expected);
+				assert.equal(validateSnapshot(docToSnapshot(doc)).ok, true);
+			}
+
+			const file = () => parseSnapshot(readFileSync(join(root, ".flowplan", "main.json"), "utf8"));
+			await waitFor(() => {
+				const saved = file();
+				return saved.ok && saved.snapshot.blocks.find((x) => x.id === "b_api")?.parentId === null;
+			});
+			const saved = file();
+			assert.ok(saved.ok);
+			assert.deepEqual(
+				saved.snapshot.blocks.map((x) => x.id),
+				["b_api", "b_login", "b_root", "b_store"],
+			);
+			assert.ok(
+				logged.some((line) => line.includes("moved") && line.includes("b_api")),
+				logged.join("\n"),
+			);
+
+			let updatesAfter = 0;
+			live.on("update", () => updatesAfter++);
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			assert.equal(updatesAfter, 0);
+		} finally {
+			disconnect(a, b);
 			await server.close();
 		}
 	});

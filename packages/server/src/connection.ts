@@ -1,4 +1,4 @@
-import { EDIT_KEY, pruneOrphans } from "@flowplan/core";
+import { EDIT_KEY, repairFlow } from "@flowplan/core";
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import type { WebSocket } from "ws";
@@ -99,9 +99,15 @@ export class FlowRoom {
 	private afterTransaction(transaction: Y.Transaction): void {
 		if (!this.clientOf(transaction.origin)) return;
 		try {
-			pruneOrphans(this.doc);
+			const { removed, moved } = repairFlow(this.doc);
+			if (moved.length > 0) {
+				this.log(`flow '${this.name}': moved blocks out of a parent cycle or a function parent: ${moved.join(", ")}`);
+			}
+			if (removed.length > 0) {
+				this.log(`flow '${this.name}': removed items whose parent or end no longer exists: ${removed.join(", ")}`);
+			}
 		} catch (error) {
-			this.log(`flow '${this.name}': orphan cleanup failed: ${(error as Error).message}`);
+			this.log(`flow '${this.name}': flow repair failed: ${(error as Error).message}`);
 		}
 	}
 
