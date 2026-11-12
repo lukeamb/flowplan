@@ -1,10 +1,8 @@
-import type { Block, Snapshot } from "@flowplan/core";
+import { type Block, printable, type Snapshot } from "@flowplan/core";
 
 export function count(n: number, noun: string): string {
 	return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
-
-const oneLine = (text: string) => text.replace(/\r?\n/g, " ");
 
 export function formatOutline(snapshot: Snapshot, flow: string): string {
 	const children = new Map<string | null, Block[]>();
@@ -16,8 +14,9 @@ export function formatOutline(snapshot: Snapshot, flow: string): string {
 	];
 	const walk = (parentId: string | null, depth: number) => {
 		for (const block of children.get(parentId) ?? []) {
-			const source = block.source ? ` (${block.source})` : "";
-			lines.push(`${"  ".repeat(depth)}${block.id} [${block.level}] ${oneLine(block.title)}${source}`);
+			const source = block.source ? ` (${printable(block.source)})` : "";
+			const head = `${printable(block.id)} [${printable(block.level)}] ${printable(block.title)}`;
+			lines.push(`${"  ".repeat(depth)}${head}${source}`);
 			walk(block.id, depth + 1);
 		}
 	};
@@ -26,7 +25,10 @@ export function formatOutline(snapshot: Snapshot, flow: string): string {
 		lines.push("connections: (none)");
 	} else {
 		lines.push("connections:");
-		for (const c of snapshot.connections) lines.push(`  ${c.id}: ${c.from} -> ${c.to} ${JSON.stringify(c.label)}`);
+		for (const c of snapshot.connections) {
+			const label = `"${printable(c.label.replaceAll("\\", "\\\\").replaceAll('"', '\\"'))}"`;
+			lines.push(`  ${printable(c.id)}: ${printable(c.from)} -> ${printable(c.to)} ${label}`);
+		}
 	}
 	return `${lines.join("\n")}\n`;
 }

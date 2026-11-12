@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { closeSync, openSync, readFileSync, statSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import { mkdir, open, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,8 +57,17 @@ function logTail(path: string, from: number): string {
 
 async function spawnServer(root: string, dir: string, deadline: number): Promise<ServerInfo> {
 	const logPath = join(dir, LOG_FILE);
-	const log = openSync(logPath, "a");
-	const logStart = statSync(logPath).size;
+	let log: number;
+	try {
+		log = openSync(logPath, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
+	} catch (error) {
+		throw new CliError(`the flowplan server cannot start: cannot open ${logPath}: ${(error as Error).message}`);
+	}
+	if (!fstatSync(log).isFile()) {
+		closeSync(log);
+		throw new CliError(`the flowplan server cannot start: ${logPath} is not a regular file`);
+	}
+	const logStart = fstatSync(log).size;
 	const bin = fileURLToPath(import.meta.resolve("@flowplan/server/bin"));
 	const child = spawn(process.execPath, [bin, "--root", root], { detached: true, stdio: ["ignore", log, log] });
 	closeSync(log);

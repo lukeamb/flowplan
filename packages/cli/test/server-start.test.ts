@@ -91,6 +91,24 @@ describe("server start from an edit command", () => {
 		assert.equal(serverInfo(root), undefined);
 	});
 
+	it("refuses a symlinked server.log and leaves the file it points to unchanged", async () => {
+		const root = tempRoot();
+		const path = await writeFlow(root, "main", sampleSnapshot());
+		const outside = join(tempRoot(), "victim.txt");
+		writeFileSync(outside, "keep me\n");
+		symlinkSync(outside, join(root, ".flowplan", "server.log"));
+		try {
+			const run = await addBlock(root, "Billing");
+			assert.notEqual(run.code, 0);
+			assert.match(run.stderr, /server\.log/);
+			assert.equal(readFileSync(outside, "utf8"), "keep me\n");
+			assert.equal(readFileSync(path, "utf8").includes("Billing"), false);
+		} finally {
+			await stopSpawnedServers(root);
+		}
+		assert.deepEqual(serverProcesses(root), []);
+	});
+
 	it("exits with a non-zero code, shows the server's error and leaves the snapshot unchanged when the spawned server fails", async () => {
 		const root = tempRoot();
 		const path = await writeFlow(root, "main", sampleSnapshot());
