@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import { tempRoot } from "./helpers.ts";
 
 const repo = new URL("../../../", import.meta.url);
@@ -12,6 +13,12 @@ describe("start command", () => {
 		const manifest = JSON.parse(readFileSync(new URL("package.json", repo), "utf8"));
 		assert.equal(manifest.scripts.start, "node packages/server/bin/flowplan-server.ts");
 		assert.match(readFileSync(new URL("README.md", repo), "utf8"), /npm start/);
+	});
+
+	it("exports its bin path for the CLI, outside node_modules", () => {
+		const path = fileURLToPath(import.meta.resolve("@flowplan/server/bin"));
+		assert.equal(path, fileURLToPath(new URL("packages/server/bin/flowplan-server.ts", repo)));
+		assert.equal(realpathSync(path).includes("node_modules"), false);
 	});
 
 	it("starts the server for a root, prints its URL, and removes server.json when it stops", async () => {

@@ -355,11 +355,15 @@ describe(".flowplan/.gitignore in the planned repo", () => {
 				".flowplan/server.json",
 				".flowplan/.main.json.123.4.tmp",
 				".flowplan/server.json.123.tmp",
+				".flowplan/server.log",
+				".flowplan/server.lock",
 			);
 			assert.deepEqual(ignored.trim().split("\n"), [
 				".flowplan/server.json",
 				".flowplan/.main.json.123.4.tmp",
 				".flowplan/server.json.123.tmp",
+				".flowplan/server.log",
+				".flowplan/server.lock",
 			]);
 			assert.throws(() => git(root, "check-ignore", ".flowplan/main.json"));
 			assert.throws(() => git(root, "check-ignore", ".flowplan/.gitignore"));
@@ -387,13 +391,16 @@ describe(".flowplan/.gitignore in the planned repo", () => {
 		try {
 			assert.equal(
 				readFileSync(join(root, ".flowplan", ".gitignore"), "utf8"),
-				"# mine\nscratch/\nserver.json\n*.tmp\n",
+				"# mine\nscratch/\nserver.json\n*.tmp\nserver.log\nserver.lock\n",
 			);
 		} finally {
 			await server.close();
 		}
 		const again = await start({ root });
 		await again.server.close();
-		assert.equal(readFileSync(join(root, ".flowplan", ".gitignore"), "utf8"), "# mine\nscratch/\nserver.json\n*.tmp\n");
+		assert.equal(
+			readFileSync(join(root, ".flowplan", ".gitignore"), "utf8"),
+			"# mine\nscratch/\nserver.json\n*.tmp\nserver.log\nserver.lock\n",
+		);
 	});
 });

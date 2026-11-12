@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./bin": "./bin/flowplan-server.ts"
   },
   "bin": {
     "flowplan-server": "./bin/flowplan-server.ts"

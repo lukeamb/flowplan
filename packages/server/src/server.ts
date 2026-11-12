@@ -14,7 +14,7 @@ export const HOST = "127.0.0.1";
 export const DEFAULT_DEBOUNCE_MS = 500;
 export const SERVER_FILE = "server.json";
 const MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
-export const IGNORED_PATTERNS = [SERVER_FILE, "*.tmp"];
+export const IGNORED_PATTERNS = [SERVER_FILE, "*.tmp", "server.log", "server.lock"];
 
 export type ServerOptions = {
 	root: string;
