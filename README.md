@@ -54,7 +54,7 @@ Run the command from the root of the repo that you plan. Replace `<flowplan>` wi
 node <flowplan>/packages/cli/bin/flowplan.ts show
 ```
 
-To put `flowplan` on your `PATH`, run `npm link -w packages/cli` once in the flowplan repo. The examples below use `flowplan`.
+To type `flowplan` instead, add a shell alias, for example `alias flowplan="node <flowplan>/packages/cli/bin/flowplan.ts"`. The examples below use `flowplan`.
 
 - `--root <dir>` sets the planned repo. Default: the current directory.
 - `--flow <name>` sets the flow. Default: `main`.
