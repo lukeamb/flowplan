@@ -54,11 +54,15 @@ const AGENT = "agent";
 async function withLiveFlow<T>(context: Context, change: (doc: Y.Doc) => T): Promise<T> {
 	const info = await ensureServer(context.root);
 	const connection = await openFlow(info, context.flow);
+	let result: T;
 	try {
-		return change(connection.doc);
-	} finally {
-		await connection.close();
+		result = change(connection.doc);
+	} catch (error) {
+		await connection.close().catch(() => undefined);
+		throw error;
 	}
+	await connection.close();
+	return result;
 }
 
 function text(values: Values, name: string): string | undefined {
@@ -251,7 +255,7 @@ export const COMMANDS: Command[] = [
 			if (info) {
 				const connection = await openFlow(info, flow);
 				snapshot = docToSnapshot(connection.doc);
-				await connection.close();
+				await connection.close().catch(() => undefined);
 				if (snapshot.blocks.length === 0 && !(await exists(file))) throw new CliError(`no flow '${flow}' in ${dir}`);
 			} else {
 				if (!(await exists(file))) throw new CliError(`no flow '${flow}' in ${dir}`);
@@ -317,7 +321,7 @@ export const COMMANDS: Command[] = [
 						: `no focus: no UI client is connected to flow '${context.flow}'\n`,
 				);
 			} finally {
-				await connection.close();
+				await connection.close().catch(() => undefined);
 			}
 			return 0;
 		},

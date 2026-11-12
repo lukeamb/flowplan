@@ -58,30 +58,46 @@ export async function openFlow(info: ServerInfo, flow: string, timeoutMs = 5000)
 		throw error;
 	}
 
+	let lost: string | undefined;
+	provider.on("connection-close", (event: CloseEvent | null) => {
+		if (event && lost === undefined) lost = describeClose(event);
+	});
+
 	let closed: Promise<void> | undefined;
 	return {
 		doc,
 		provider,
 		close: () => {
 			closed ??= new Promise<void>((resolve, reject) => {
+				const fail = (reason: string) => {
+					destroy();
+					reject(new CliError(`the flowplan server did not apply the edit: ${reason}`));
+				};
 				const socket = provider.ws;
-				if (!socket || socket.readyState === socket.CLOSED) {
-					destroy();
-					resolve();
-					return;
+				if (lost !== undefined || !socket || socket.readyState === socket.CLOSED) {
+					return fail(lost ?? "the connection was already closed");
 				}
-				const timer = setTimeout(() => {
-					destroy();
-					reject(new CliError("the flowplan server did not confirm that it received the edit"));
-				}, CLOSE_TIMEOUT_MS);
-				socket.addEventListener("close", () => {
+				const timer = setTimeout(() => fail("the server did not confirm the close in time"), CLOSE_TIMEOUT_MS);
+				socket.addEventListener("close", (event: CloseEvent) => {
 					clearTimeout(timer);
-					destroy();
-					resolve();
+					if (event.code === NORMAL_CLOSE && event.wasClean) {
+						destroy();
+						resolve();
+					} else {
+						fail(describeClose(event));
+					}
 				});
+				socket.close(NORMAL_CLOSE);
 				provider.disconnect();
 			});
 			return closed;
 		},
 	};
+}
+
+const NORMAL_CLOSE = 1000;
+
+function describeClose(event: { code: number; reason: string; wasClean: boolean }): string {
+	const reason = event.reason ? `: ${event.reason}` : "";
+	return `the connection closed with code ${event.code}${event.wasClean ? "" : " (not clean)"}${reason}`;
 }
