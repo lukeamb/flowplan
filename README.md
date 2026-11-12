@@ -28,6 +28,7 @@ Stop the server with Ctrl+C. The server writes each pending snapshot before it s
 - At start, the server loads each flow from its file. If a file is not valid, the server logs each error and does not load that flow. A client cannot open that flow until you correct the file and restart the server.
 - The server writes a flow's file 500 ms after the last edit. It writes a temporary file and then renames it, so a reader never sees a partly written file.
 - Before each write, the server validates the snapshot. If the snapshot is not valid, the server logs the error and keeps the last valid file.
+- Each edit records its origin, `ui` or `agent`, in an edit-origin map in the live document. The map holds at most one key for each connected client: when a client disconnects, the server removes its key. Each removed key leaves a small record in memory until the server restarts.
 
 **Caution: while the server runs, do not edit a flow file by hand.** The server does not read the file again. Its next write replaces your edit. Stop the server, edit the file, then start the server again.
 
