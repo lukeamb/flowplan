@@ -37,7 +37,7 @@ export type FlowplanServer = {
 	close(): Promise<void>;
 };
 
-function isRunning(pid: number): boolean {
+export function isRunning(pid: number): boolean {
 	try {
 		process.kill(pid, 0);
 		return true;
@@ -46,7 +46,7 @@ function isRunning(pid: number): boolean {
 	}
 }
 
-async function readServerInfo(path: string): Promise<ServerInfo | undefined> {
+export async function readServerInfo(path: string): Promise<ServerInfo | undefined> {
 	try {
 		const info = JSON.parse(await readFile(path, "utf8")) as Partial<ServerInfo>;
 		return Number.isInteger(info.pid) && Number.isInteger(info.port) ? (info as ServerInfo) : undefined;
