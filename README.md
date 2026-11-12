@@ -92,6 +92,8 @@ flowplan import draft.json
 - `flowplan delete` on a block also deletes its child canvas and every connection to those blocks.
 - `flowplan import` adds a whole draft in one edit, so the user sees all of it at once. The file must be a valid snapshot on its own, and no ID in it may already be in the flow. Import never changes or deletes a block that exists.
 - The command refuses an edit that breaks a rule, for example a parent cycle or a function block as a parent.
+- The command refuses an edit whose update is over the server's message limit of 16 MiB, before it sends anything. Split a large import into smaller files.
+- An edit command exits with code 0 only after the server closed the connection cleanly, so the server has applied the edit. If the server refuses the edit or stops during the command, the command exits with code 1 and prints the reason.
 
 ### Watch the user
 
