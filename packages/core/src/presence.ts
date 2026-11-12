@@ -39,8 +39,23 @@ export function describeFocus(doc: Y.Doc, focus: Focus): FocusView {
 	return { canvas: focus.canvas.map(item), selected: focus.selected.map(item) };
 }
 
+export function isControlCharacter(code: number): boolean {
+	return code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+}
+
+export function printable(text: string): string {
+	let out = "";
+	for (const char of text) {
+		const code = char.codePointAt(0) ?? 0;
+		if (!isControlCharacter(code)) out += char;
+		else if (char === "\n" || char === "\r" || char === "\t") out += " ";
+		else out += `\\u${code.toString(16).padStart(4, "0")}`;
+	}
+	return out;
+}
+
 export function formatFocus(view: FocusView): string {
-	const name = (item: FocusItem) => item.title ?? `(deleted ${item.id})`;
+	const name = (item: FocusItem) => (item.title === null ? `(deleted ${item.id})` : printable(item.title));
 	const canvas = ["Top", ...view.canvas.map(name)].join(" › ");
 	const selected =
 		view.selected.length === 0 ? "(none)" : view.selected.map((item) => `${name(item)} (${item.id})`).join(", ");

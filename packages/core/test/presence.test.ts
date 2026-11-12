@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { describeFocus, formatFocus, PRESENCE_KEY, parsePresence, presenceState, snapshotToDoc } from "../src/index.ts";
+import {
+	describeFocus,
+	formatFocus,
+	isControlCharacter,
+	PRESENCE_KEY,
+	parsePresence,
+	presenceState,
+	setField,
+	snapshotToDoc,
+} from "../src/index.ts";
 import { sampleSnapshot } from "./fixtures.ts";
 
 describe("presence state", () => {
@@ -49,5 +58,18 @@ describe("describeFocus", () => {
 			"canvas: Top › Auth › API service\nselected: login() (b_login), User store (b_store)\n",
 		);
 		assert.equal(formatFocus(describeFocus(doc, { canvas: [], selected: [] })), "canvas: Top\nselected: (none)\n");
+	});
+});
+
+describe("formatFocus with control characters", () => {
+	it("prints a control character in a title as a visible escape, and a newline or a tab as a space", () => {
+		const doc = snapshotToDoc(sampleSnapshot());
+		setField(doc, "ui", "b_api", "title", "red\u001b[31m text\nnext\tcol\u0007");
+		const text = formatFocus(describeFocus(doc, { canvas: ["b_api"], selected: [] }));
+		assert.equal(text, "canvas: Top › red\\u001b[31m text next col\\u0007\nselected: (none)\n");
+		assert.deepEqual(
+			[...text].filter((char) => char !== "\n" && isControlCharacter(char.codePointAt(0) ?? 0)),
+			[],
+		);
 	});
 });
