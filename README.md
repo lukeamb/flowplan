@@ -39,7 +39,7 @@ Stop the server with Ctrl+C. The server writes each pending snapshot before it s
 - The server refuses a websocket when the `Origin` header is present and is not the server's own origin. Add more origins with `--allow-origin`.
 - Every websocket client must send the token from `.flowplan/server.json` as the `token` query parameter. This applies to the CLI and to the browser app.
 - `.flowplan/server.json` holds the port, the process ID and the token. Only its owner can read it. The server deletes it when it stops.
-- At start, the server makes sure that `.flowplan/.gitignore` lists `server.json` and `*.tmp`. It adds a missing line and keeps every other line. Git then ignores the token file and temporary files in the repo that you plan.
+- At start, the server makes sure that `.flowplan/.gitignore` lists `server.json` and `*.tmp`. It adds a missing line and keeps every other line. Git then ignores the token file and temporary files in the repo that you plan. If `.flowplan/.gitignore` is a symlink or is not a regular file, the server does not start.
 - Only one server can run for a directory. When `server.json` names a process that is running, a second server does not start.
 
 ## Development

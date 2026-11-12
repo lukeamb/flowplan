@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -366,6 +366,17 @@ describe(".flowplan/.gitignore in the planned repo", () => {
 		} finally {
 			await server.close();
 		}
+	});
+
+	it("refuses to start when .flowplan/.gitignore is a symlink, and leaves its target unchanged", async () => {
+		const root = tempRoot();
+		const outside = join(tempRoot(), "target.txt");
+		writeFileSync(outside, "keep me\n");
+		await mkdir(join(root, ".flowplan"), { recursive: true });
+		symlinkSync(outside, join(root, ".flowplan", ".gitignore"));
+		await assert.rejects(startServer({ root, log: () => {} }), /\.gitignore.*not a regular file/);
+		assert.equal(readFileSync(outside, "utf8"), "keep me\n");
+		assert.equal(existsSync(join(root, ".flowplan", "server.json")), false);
 	});
 
 	it("adds only the missing lines and keeps every other line", async () => {

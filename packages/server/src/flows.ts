@@ -102,7 +102,7 @@ export class FlowStore {
 			const target = join(this.options.dir, `${name}.json`);
 			const temp = join(this.options.dir, `.${name}.json.${process.pid}.${++this.writeCounter}.tmp`);
 			try {
-				await writeFile(temp, text);
+				await writeFile(temp, text, { flag: "wx" });
 				await rename(temp, target);
 			} catch (error) {
 				await rm(temp, { force: true });

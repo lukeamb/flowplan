@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
@@ -57,7 +57,8 @@ async function readServerInfo(path: string): Promise<ServerInfo | undefined> {
 
 async function writePrivateFile(path: string, text: string): Promise<void> {
 	const temp = `${path}.${process.pid}.tmp`;
-	await writeFile(temp, text, { mode: 0o600 });
+	await rm(temp, { force: true });
+	await writeFile(temp, text, { mode: 0o600, flag: "wx" });
 	await rename(temp, path);
 }
 
@@ -65,6 +66,8 @@ export async function ensureGitignore(dir: string): Promise<void> {
 	const path = join(dir, ".gitignore");
 	let text = "";
 	try {
+		const info = await lstat(path);
+		if (!info.isFile()) throw new Error(`${path} is not a regular file, so the server does not write to it`);
 		text = await readFile(path, "utf8");
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -73,7 +76,10 @@ export async function ensureGitignore(dir: string): Promise<void> {
 	const missing = IGNORED_PATTERNS.filter((pattern) => !present.has(pattern));
 	if (missing.length === 0) return;
 	const separator = text === "" || text.endsWith("\n") ? "" : "\n";
-	await writeFile(path, `${text}${separator}${missing.join("\n")}\n`);
+	const temp = `${path}.${process.pid}.tmp`;
+	await rm(temp, { force: true });
+	await writeFile(temp, `${text}${separator}${missing.join("\n")}\n`, { flag: "wx" });
+	await rename(temp, path);
 }
 
 function refuse(socket: Duplex, status: number, reason: string): void {
